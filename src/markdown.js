@@ -104,6 +104,9 @@
     if (node.hasAttribute('data-magic-copy-ui')) return false;
     // claude.ai 的代码块右上角有「复制 / 语言」工具条，元素本身是 div 不是 button
     if (node.getAttribute('role') === 'button' || node.getAttribute('role') === 'toolbar') return false;
+    // aria-hidden 是对辅助技术隐藏的装饰性内容：KaTeX 的 .katex-html 渲染字形、图标等。
+    // 公式正常走 mathKind 拦截，这里是兜底 —— 万一没拦住也绝不把渲染字形抄进来
+    if (node.getAttribute('aria-hidden') === 'true') return false;
     var win = node.ownerDocument && node.ownerDocument.defaultView;
     if (win && win.getComputedStyle) {
       var st = win.getComputedStyle(node);

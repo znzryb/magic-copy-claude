@@ -3,6 +3,7 @@
 
 用法：~/miniconda3/bin/python test/run.py [-v]
 """
+import os
 import pathlib
 import sys
 
@@ -11,6 +12,8 @@ from playwright.sync_api import sync_playwright
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 FIXTURE = (ROOT / "test" / "fixture.html").as_uri()
 VERBOSE = "-v" in sys.argv
+# playwright 包版本和已装浏览器不配套时，用 CHROMIUM_EXE 指定二进制
+CHROMIUM_EXE = os.environ.get("CHROMIUM_EXE") or None
 
 HELPERS = r"""
 window.__t = {
@@ -116,13 +119,19 @@ CASES = [
         ["### 参考实现", "```cpp", "`std::vector<int>`"],
         [],
     ),
+    (
+        "aria-hidden 的装饰内容不进 Markdown（KaTeX 渲染字形同款机制）",
+        "__t.contents('#p-aria')",
+        ["正文前半句正文后半句。"],
+        ["装饰图标"],
+    ),
 ]
 
 
 def main():
     failures = []
     with sync_playwright() as pw:
-        browser = pw.chromium.launch()
+        browser = pw.chromium.launch(executable_path=CHROMIUM_EXE)
         page = browser.new_page()
         page.goto(FIXTURE)
         page.add_script_tag(path=str(ROOT / "src" / "markdown.js"))

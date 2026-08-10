@@ -8,6 +8,7 @@
 """
 import functools
 import http.server
+import os
 import pathlib
 import socketserver
 import sys
@@ -17,6 +18,8 @@ from playwright.sync_api import sync_playwright
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 PORT = 8791
+# playwright 包版本和已装浏览器不配套时，用 CHROMIUM_EXE 指定二进制
+CHROMIUM_EXE = os.environ.get("CHROMIUM_EXE") or None
 
 
 def serve():
@@ -32,7 +35,7 @@ def main():
     problems = []
     try:
         with sync_playwright() as pw:
-            browser = pw.chromium.launch()
+            browser = pw.chromium.launch(executable_path=CHROMIUM_EXE)
             ctx = browser.new_context()
             ctx.grant_permissions(["clipboard-read", "clipboard-write"],
                                   origin=f"http://127.0.0.1:{PORT}")
@@ -88,6 +91,32 @@ def main():
             print(("PASS" if ok_toast else "FAIL") + f"  复制后提示浮层：{toast!r}")
             if not ok_toast:
                 problems.append("没弹出「已复制」提示")
+
+            # —— 原生 Ctrl+C / ⌘C：copy 事件拦截（copy-tex 模式）也要产出 Markdown ——
+            page.evaluate("navigator.clipboard.writeText('placeholder')")
+            page.mouse.move(start["x"] + 2, start["y"] + 6)
+            page.mouse.down()
+            page.mouse.move(end["x"] + end["width"] - 4, end["y"] + end["height"] - 6, steps=12)
+            page.mouse.up()
+            page.wait_for_timeout(120)
+            page.keyboard.press("ControlOrMeta+c")
+            page.wait_for_timeout(200)
+
+            md2 = page.evaluate("navigator.clipboard.readText()")
+            native_problems = []
+            for must in ["**恰好贡献 $L-1$**", "2. 前缀这 $L$ 格"]:
+                if must not in md2:
+                    native_problems.append(f"原生复制缺少 {must!r}")
+            for bad in ["katex", "L−1"]:
+                if bad in md2:
+                    native_problems.append(f"原生复制混进了 {bad!r}")
+            print(("PASS" if not native_problems else "FAIL") + "  原生 Ctrl+C 也复制成 Markdown")
+            if native_problems:
+                print("      ┌─ 剪贴板内容 ───────────────")
+                for line in md2.split("\n"):
+                    print("      │ " + line)
+                print("      └───────────────────────────")
+            problems.extend(native_problems)
 
             browser.close()
     finally:
