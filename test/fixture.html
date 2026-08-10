@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>magic-copy fixture</title>
+<style>
+  /* 模仿 KaTeX 真实做法：MathML 那份视觉上藏起来，但不是 display:none */
+  .katex-mathml {
+    position: absolute; clip: rect(1px, 1px, 1px, 1px);
+    padding: 0; border: 0; height: 1px; width: 1px; overflow: hidden;
+  }
+  .katex-display { display: block; text-align: center; margin: 1em 0; }
+  body { font-family: sans-serif; max-width: 700px; margin: 20px auto; }
+</style>
+</head>
+<body>
+<div class="font-claude-response">
+
+  <p id="p-intro">我用图把三个关键点讲清楚：<strong>单行怎么贡献</strong>、为什么
+    <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>m</mi><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">m-1</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base">m−1</span></span></span>
+    要用两行。</p>
+
+  <p id="p-lede">三件事同时成立，所以这一行<strong>恰好贡献
+    <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>L</mi><mo>−</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">L-1</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base">L−1</span></span></span></strong>：</p>
+
+  <ol id="ol-three">
+    <li id="li-1">前缀里相邻两格颜色必不同（上一行交错，同时翻转后仍交错），所以前缀的每一格各自成块；</li>
+    <li id="li-2">前缀这
+      <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>L</mi></mrow><annotation encoding="application/x-tex">L</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base">L</span></span></span>
+      格都与正上方异色，所以都是"新"的；</li>
+    <li id="li-3">边界那一格（第
+      <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>L</mi></mrow><annotation encoding="application/x-tex">L</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base">L</span></span></span>
+      格）和右边照抄格同色，被吸走 —— 而且它只连到<strong>一个</strong>已有块，不会把两个旧块粘成一个。</li>
+  </ol>
+
+  <p id="p-after">
+    <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>L</mi><mo>=</mo><mi>m</mi></mrow><annotation encoding="application/x-tex">L=m</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base">L=m</span></span></span>
+    （整行翻转）时没有边界，贡献
+    <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>m</mi></mrow><annotation encoding="application/x-tex">m</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base">m</span></span></span>
+    。所以单行贡献集合是
+    <span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>{</mo><mn>0</mn><mo>,</mo><mn>1</mn><mo>,</mo><mo>…</mo><mo>}</mo></mrow><annotation encoding="application/x-tex">\{0,1,\dots,m-2\}\cup\{m\}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base">{0,1,…,m−2}∪{m}</span></span></span>
+    ，天生缺 1。</p>
+
+  <span class="katex-display" id="display-math"><span class="katex"><span class="katex-mathml"><math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><semantics><mrow><mi>f</mi></mrow><annotation encoding="application/x-tex">\sum_{i=1}^{n} f(i) = \binom{n}{2}</annotation></semantics></math></span><span class="katex-html" aria-hidden="true"><span class="base">∑f(i)=(n2)</span></span></span></span>
+
+  <h3 id="h-code">参考实现</h3>
+  <pre id="pre-code"><div class="rounded-t-lg"><div class="text-text-300 text-xs">cpp</div><button>Copy</button></div><div><code class="language-cpp"><span>for (int i = 0; i &lt; n; i++) {</span>
+<span>    ans += a[i] * <span>2</span>;   // 注意溢出</span>
+<span>}</span></code></div></pre>
+
+  <p id="p-inline">用 <code>std::vector&lt;int&gt;</code> 就行，细节看 <a href="https://example.com/doc?a=1&amp;b=2">这份文档</a>。</p>
+
+  <blockquote id="bq"><p>注意：这里的 <em>L</em> 是前缀长度，不是行号。</p></blockquote>
+
+  <ul id="ul-nested">
+    <li>外层第一项
+      <ul>
+        <li>内层 A</li>
+        <li>内层 B</li>
+      </ul>
+    </li>
+    <li>外层第二项</li>
+  </ul>
+
+  <table id="tbl">
+    <thead><tr><th>做法</th><th>复杂度</th></tr></thead>
+    <tbody>
+      <tr><td>暴力</td><td>O(n^2)</td></tr>
+      <tr><td>前缀和 | 差分</td><td>O(n)</td></tr>
+    </tbody>
+  </table>
+
+  <p id="p-escape">这里有 *星号* 和 [方括号] 还有 `反引号` 要转义。</p>
+  <p id="p-dash">- 这一行本来就以减号开头</p>
+
+</div>
+</body>
+</html>
