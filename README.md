@@ -19,13 +19,15 @@
 
 ## 安装
 
-没有构建步骤，克隆下来直接加载：
-
 ```bash
 git clone https://github.com/znzryb/magic-copy-claude.git
+cd magic-copy-claude
+./install.sh          # 同步到 ~/chrome-extensions/magic-copy-claude/
 ```
 
-Chrome → `chrome://extensions` → 打开右上角「开发者模式」→「加载已解压的扩展程序」→ 选这个仓库目录。
+Chrome → `chrome://extensions` → 打开右上角「开发者模式」→「加载已解压的扩展程序」→ 选 `~/chrome-extensions/magic-copy-claude`。
+
+> 改完代码要重新跑一遍 `./install.sh`，再去 `chrome://extensions` 点「重新加载」。Chrome 加载的是 `~/chrome-extensions/` 下那份，只改仓库不同步是不生效的。
 
 ## 用法
 
