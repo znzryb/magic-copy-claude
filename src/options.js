@@ -4,6 +4,7 @@ var DEFAULTS = {
   enabled: true,
   showButton: true,
   hotkey: true,
+  interceptCopy: true,
   mathStyle: 'dollar',
   bullet: '-',
   escapeText: true,

@@ -10,6 +10,7 @@
     enabled: true,
     showButton: true,
     hotkey: true,
+    interceptCopy: true,      // 接管对话正文里的原生 ⌘C / Ctrl+C
     mathStyle: 'dollar',      // dollar: $x$ / $$x$$ ；paren: \(x\) / \[x\]
     bullet: '-',
     escapeText: true,
@@ -231,6 +232,65 @@
   }, true);
   window.addEventListener('scroll', hideBar, true);
   window.addEventListener('resize', hideBar);
+
+  /* ------------------- 原生复制拦截（copy-tex 模式） ------------------- */
+  /*
+   * 参考 KaTeX 官方 contrib/copy-tex 的做法：监听 copy 事件，重写剪贴板的
+   * text/plain，同时保留 text/html。这样在对话正文里随手 ⌘C，粘出来的就是
+   * 带 LaTeX 的 Markdown，而不是「nmnm nm」这种 MathML + annotation +
+   * 渲染字形三份叠加的原生复制结果；粘到富文本编辑器时走 html 那份，不受影响。
+   */
+
+  var CONTENT_SELECTOR =
+    '[data-testid="user-message"], .font-claude-response, [data-is-streaming], .katex';
+
+  function selectionInMessage(range) {
+    var node = range.commonAncestorContainer;
+    var el = node && (node.nodeType === 1 ? node : node.parentElement);
+    if (!el || !el.closest) return false;
+    if (el.closest(CONTENT_SELECTOR)) return true;
+    // 选区横跨多条消息时，公共祖先在消息容器外面 —— 看选中的内容里有没有正文
+    try {
+      var frag = range.cloneContents();
+      return !!(frag.querySelector && frag.querySelector(CONTENT_SELECTOR));
+    } catch (e) {
+      return false;
+    }
+  }
+
+  document.addEventListener('copy', function (e) {
+    if (!OPTS.enabled || !OPTS.interceptCopy) return;
+    if (!e.clipboardData) return; // 改不了剪贴板就交还默认行为
+    var sel = currentSelection();
+    if (!sel) return;
+    var range = sel.getRangeAt(0);
+    if (!selectionInMessage(range)) return; // 侧栏 / 输入框等不掺和
+
+    var md = '';
+    try {
+      md = window.MagicCopyMD.fromSelection(sel, mdOpts());
+    } catch (err) {
+      console.error('[magic-copy] 转换失败，走默认复制', err);
+      return;
+    }
+    if (!md.trim()) return;
+    if (OPTS.trailingSource) md += '\n\n> 来源：' + location.href;
+
+    // copy-tex 同款：text/html 保留原始选区片段
+    try {
+      var html = '';
+      var kids = range.cloneContents().childNodes;
+      for (var i = 0; i < kids.length; i++) {
+        var n = kids[i];
+        html += n.nodeType === 3 ? (n.textContent || '') : (n.outerHTML || '');
+      }
+      if (html) e.clipboardData.setData('text/html', html);
+    } catch (err2) { /* html 那份丢了也无妨 */ }
+
+    e.clipboardData.setData('text/plain', md);
+    e.preventDefault();
+    flash('已复制为 Markdown ✓');
+  });
 
   document.addEventListener('keydown', function (e) {
     if (!OPTS.enabled || !OPTS.hotkey) return;
