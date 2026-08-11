@@ -19,14 +19,11 @@
   .hint { display: block; font-size: 11px; opacity: .55; margin-top: 1px; }
   select { font: inherit; padding: 3px 6px; border-radius: 6px; border: 1px solid rgba(0,0,0,.2); background: #fff; color: inherit; }
   input[type=checkbox] { width: 16px; height: 16px; accent-color: #c96442; }
-  kbd { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; background: rgba(0,0,0,.07);
-        border-radius: 4px; padding: 1px 5px; }
   .foot { margin-top: 16px; font-size: 11px; opacity: .55; }
   @media (prefers-color-scheme: dark) {
     body { background: #262624; color: #f5f4f2; }
     .row + .row { border-top-color: rgba(255,255,255,.09); }
     select { background: #1f1e1d; border-color: rgba(255,255,255,.2); }
-    kbd { background: rgba(255,255,255,.12); }
   }
 </style>
 </head>
@@ -35,20 +32,12 @@
   <p class="sub">在 claude.ai 选中文字 → 复制为 Markdown（公式还原成 LaTeX）</p>
 
   <div class="row">
-    <label for="enabled">启用<span class="hint">关掉后按钮和快捷键都不响应</span></label>
+    <label for="enabled">启用<span class="hint">关掉后不再显示划词按钮</span></label>
     <input type="checkbox" id="enabled">
   </div>
   <div class="row">
     <label for="showButton">显示划词按钮<span class="hint">选中后浮出「复制为 Markdown」</span></label>
     <input type="checkbox" id="showButton">
-  </div>
-  <div class="row">
-    <label for="hotkey">启用快捷键<span class="hint"><kbd>⌥</kbd><kbd>⇧</kbd><kbd>C</kbd>（Alt+Shift+C）</span></label>
-    <input type="checkbox" id="hotkey">
-  </div>
-  <div class="row">
-    <label for="interceptCopy">接管普通复制<span class="hint">在对话正文里直接 <kbd>⌘</kbd><kbd>C</kbd>（<kbd>Ctrl</kbd><kbd>C</kbd>）也复制成 Markdown</span></label>
-    <input type="checkbox" id="interceptCopy">
   </div>
   <div class="row">
     <label for="mathStyle">公式定界符</label>

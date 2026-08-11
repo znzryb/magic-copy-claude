@@ -3,6 +3,7 @@
 
 跑的是 src/markdown.js + src/content.js 本体（注入到页面里），
 覆盖 run.py 测不到的那部分：选区监听、Shadow DOM 工具条、剪贴板写入。
+另外验证插件零键盘足迹：原生 Ctrl+C 不被改写、Alt+Shift+C 无任何反应。
 
 用法：~/miniconda3/bin/python test/e2e.py
 """
@@ -65,6 +66,15 @@ def main():
             if not bar_shown:
                 problems.append("工具条没出现")
 
+            btn_text = page.evaluate(
+                "document.querySelector('[data-magic-copy-ui]')"
+                "  ?.shadowRoot?.querySelector('.btn')?.textContent || ''"
+            )
+            ok_label = "⌥⇧C" not in btn_text
+            print(("PASS" if ok_label else "FAIL") + "  按钮文案不含快捷键提示")
+            if not ok_label:
+                problems.append(f"按钮文案还带着快捷键提示：{btn_text!r}")
+
             # Playwright 的 CSS 选择器能穿透 open shadow root
             page.click(".btn")
             page.wait_for_timeout(200)
@@ -92,7 +102,7 @@ def main():
             if not ok_toast:
                 problems.append("没弹出「已复制」提示")
 
-            # —— 原生 Ctrl+C / ⌘C：copy 事件拦截（copy-tex 模式）也要产出 Markdown ——
+            # —— 原生 Ctrl+C / ⌘C：插件绝不拦截，剪贴板必须是浏览器默认行为 ——
             page.evaluate("navigator.clipboard.writeText('placeholder')")
             page.mouse.move(start["x"] + 2, start["y"] + 6)
             page.mouse.down()
@@ -102,21 +112,40 @@ def main():
             page.keyboard.press("ControlOrMeta+c")
             page.wait_for_timeout(200)
 
-            md2 = page.evaluate("navigator.clipboard.readText()")
+            native = page.evaluate("navigator.clipboard.readText()")
             native_problems = []
-            for must in ["**恰好贡献 $L-1$**", "2. 前缀这 $L$ 格"]:
-                if must not in md2:
-                    native_problems.append(f"原生复制缺少 {must!r}")
-            for bad in ["katex", "L−1"]:
-                if bad in md2:
-                    native_problems.append(f"原生复制混进了 {bad!r}")
-            print(("PASS" if not native_problems else "FAIL") + "  原生 Ctrl+C 也复制成 Markdown")
+            if native == "placeholder":
+                native_problems.append("原生 Ctrl+C 没把选区复制进剪贴板")
+            # 关键断言：剪贴板里没有插件生成的 Markdown 标记（不校验原生复制的精确文本，那部分最 flaky）
+            for bad in ["**恰好贡献", "$L-1$", "2. 前缀这"]:
+                if bad in native:
+                    native_problems.append(f"原生复制被插件改写了（出现 {bad!r}）")
+            print(("PASS" if not native_problems else "FAIL") + "  原生 Ctrl+C 不被插件改写")
             if native_problems:
                 print("      ┌─ 剪贴板内容 ───────────────")
-                for line in md2.split("\n"):
+                for line in native.split("\n"):
                     print("      │ " + line)
                 print("      └───────────────────────────")
             problems.extend(native_problems)
+
+            # —— Alt+Shift+C：快捷键已移除，按下去必须什么都不发生 ——
+            # 先等前面点按钮弹出的 toast（1.4s 自动消失）彻底走掉，免得误判
+            page.wait_for_timeout(1500)
+            page.evaluate("navigator.clipboard.writeText('placeholder2')")
+            page.keyboard.press("Alt+Shift+C")
+            page.wait_for_timeout(200)
+            after_hotkey = page.evaluate("navigator.clipboard.readText()")
+            toast_after = page.evaluate(
+                "!!document.querySelector('[data-magic-copy-ui]')"
+                "  ?.shadowRoot?.querySelector('.toast.show')"
+            )
+            hotkey_problems = []
+            if after_hotkey != "placeholder2":
+                hotkey_problems.append(f"Alt+Shift+C 改动了剪贴板：{after_hotkey[:40]!r}")
+            if toast_after:
+                hotkey_problems.append("Alt+Shift+C 触发了提示浮层")
+            print(("PASS" if not hotkey_problems else "FAIL") + "  Alt+Shift+C 无任何反应（快捷键已移除）")
+            problems.extend(hotkey_problems)
 
             browser.close()
     finally:
