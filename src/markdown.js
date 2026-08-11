@@ -9,6 +9,11 @@
  *  2. 公式走 KaTeX 的 <annotation encoding="application/x-tex"> —— 那里存的就是 Claude
  *     输出的原始 LaTeX，比从渲染后的 span 里反推可靠得多。整块公式一旦与选区相交就整体
  *     输出（半个公式没有意义），且拦在遍历入口，绝不会下钻到 .katex-html 把渲染字形抄进来。
+ *  3. 遍历必须先用 range.intersectsNode 剪枝，再做 getComputedStyle 可见性检查。
+ *     intersectsNode 只比较节点位置，getComputedStyle 会强制同步样式重算 —— 顺序反了
+ *     的话，contextRoot 兜底到 <main> 时整个对话的几万个节点都会被逐个查样式，长对话
+ *     直接把主线程卡死。另有 maxVisits 访问预算兜底：超限抛哨兵错误，入口捕获后降级成
+ *     选区纯文本，保证任何选区都不可能挂起页面。
  */
 (function (root) {
   'use strict';
@@ -19,7 +24,8 @@
     bullet: '-',
     escapeText: true,
     keepImages: true,
-    keepLinks: true
+    keepLinks: true,
+    maxVisits: 50000
   };
 
   var BLOCK_TAGS = new Set([
@@ -64,6 +70,7 @@
   function Serializer(range, opts) {
     this.range = range || null;
     this.o = Object.assign({}, DEFAULTS, opts || {});
+    this.visits = 0;
   }
 
   // 只给「纯文本块」做行首转义。列表 / 引用的标记是我们自己生成的，绝不能被转义
@@ -71,7 +78,13 @@
     return { kind: 'text', md: this.o.escapeText ? escapeLineStarts(md) : md };
   };
 
+  // 所有遍历路径的公共咽喉，顺带记账：超出预算就抛哨兵错误，由入口降级处理
   Serializer.prototype.intersects = function (node) {
+    if (++this.visits > this.o.maxVisits) {
+      var err = new Error('magic-copy: traversal budget exceeded');
+      err.magicCopyBudget = true;
+      throw err;
+    }
     if (!this.range) return true;
     try {
       return this.range.intersectsNode(node);
@@ -179,7 +192,7 @@
       var t = collapse(this.rawText(node));
       return this.o.escapeText ? escapeMd(t) : t;
     }
-    if (!isElement(node) || !this.visible(node) || !this.intersects(node)) return '';
+    if (!isElement(node) || !this.intersects(node) || !this.visible(node)) return '';
 
     var kind = this.mathKind(node);
     if (kind) return this.math(node, kind === 'display' ? 'inline' : kind);
@@ -271,7 +284,7 @@
       var child = kids[i];
       if (isText(child)) { buf += this.inlineNode(child); continue; }
       if (!isElement(child)) continue;
-      if (!this.visible(child) || !this.intersects(child)) continue;
+      if (!this.intersects(child) || !this.visible(child)) continue;
 
       var kind = this.mathKind(child);
       if (kind === 'display') {
@@ -389,7 +402,7 @@
       var marker = ordered ? (idx + '. ') : (this.o.bullet + ' ');
       idx++;
       // 没被选中的项跳过，但序号照样递增 —— 选中第 2、3 项时输出仍是 "2. 3."
-      if (!this.visible(li) || !this.intersects(li)) continue;
+      if (!this.intersects(li) || !this.visible(li)) continue;
       var inner = this.joinBlocks(this.blocksOf(li, Object.assign({}, ctx, { depth: (ctx.depth || 0) + 1 })));
       if (!inner.trim()) continue;
       picked.push(li);
@@ -414,7 +427,7 @@
     var trs = el.querySelectorAll('tr');
     for (var i = 0; i < trs.length; i++) {
       var tr = trs[i];
-      if (!this.visible(tr) || !this.intersects(tr)) continue;
+      if (!this.intersects(tr) || !this.visible(tr)) continue;
       var cells = [];
       var isHead = false;
       var tds = tr.children;
@@ -423,7 +436,7 @@
         var tt = tag(td);
         if (tt !== 'TD' && tt !== 'TH') continue;
         if (tt === 'TH') isHead = true;
-        var text = (this.visible(td) && this.intersects(td)) ? this.inlineChildren(td).trim() : '';
+        var text = (this.intersects(td) && this.visible(td)) ? this.inlineChildren(td).trim() : '';
         cells.push(text.replace(/\|/g, '\\|').replace(/\n/g, ' '));
       }
       if (cells.length) rows.push({ head: isHead, cells: cells });
@@ -492,7 +505,13 @@
     var root = contextRoot(range);
     if (!root) return '';
     var s = new Serializer(range, opts);
-    return tidy(s.joinBlocks(s.blocksOf(root, { depth: 0 })));
+    try {
+      return tidy(s.joinBlocks(s.blocksOf(root, { depth: 0 })));
+    } catch (e) {
+      // 预算超限：降级成选区纯文本，宁可丢格式也绝不卡死页面
+      if (e && e.magicCopyBudget) return tidy(String(range));
+      throw e;
+    }
   }
 
   function fromSelection(sel, opts) {
@@ -508,7 +527,12 @@
 
   function fromElement(el, opts) {
     var s = new Serializer(null, opts);
-    return tidy(s.joinBlocks(s.blocksOf(el, { depth: 0 })));
+    try {
+      return tidy(s.joinBlocks(s.blocksOf(el, { depth: 0 })));
+    } catch (e) {
+      if (e && e.magicCopyBudget) return tidy(el.textContent || '');
+      throw e;
+    }
   }
 
   var api = {

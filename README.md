@@ -31,14 +31,9 @@ Chrome → `chrome://extensions` → 打开右上角「开发者模式」→「�
 
 ## 用法
 
-在 claude.ai 的对话正文里选中任意文字后，三选一：
+在 claude.ai 的对话正文里选中任意文字，点选区上方浮出的 **「复制为 Markdown」** 按钮。就这一个入口。
 
-- 直接按 <kbd>⌘</kbd><kbd>C</kbd>（<kbd>Ctrl</kbd><kbd>C</kbd>）—— 插件会拦截原生复制，剪贴板里就是 Markdown
-- 点选区上方浮出的 **「复制为 Markdown」** 按钮
-- 按 <kbd>⌥</kbd><kbd>⇧</kbd><kbd>C</kbd>（Windows/Linux 是 <kbd>Alt</kbd><kbd>Shift</kbd><kbd>C</kbd>）
-
-原生复制拦截只在对话消息内生效（侧栏、输入框不受影响），粘贴到富文本编辑器时仍走原始的
-`text/html`，行为不变；不想要的话可以在设置里关掉「接管普通复制」。
+插件不注册、不拦截任何键盘快捷键：<kbd>⌘</kbd><kbd>C</kbd> / <kbd>Ctrl</kbd><kbd>C</kbd> 等原生复制保持浏览器默认行为，完全不受插件影响。（注意：KaTeX 公式用原生复制会带渲染字形——要还原 LaTeX 请用按钮。）
 
 点插件图标可以改设置（公式定界符 `$…$` / `\(…\)`、列表符号、是否转义特殊字符、是否附来源链接等），改完即时生效，不用刷新页面。
 
@@ -58,15 +53,15 @@ Chrome → `chrome://extensions` → 打开右上角「开发者模式」→「�
 
 - **不用 `range.cloneContents()`**。克隆片段会丢祖先上下文——选中列表中间两项时，克隆出来的 DOM 里根本没有 `<ol>`，序号无从还原。这里改成从公共祖先往上爬到消息根节点，遍历**原始 DOM**，用 `range.intersectsNode()` 过滤、文本节点按 range 端点裁剪，于是列表 / 引用 / 表格的结构完整保留。
 - **公式取 KaTeX 的 `<annotation>`**，那里存的就是 Claude 输出的原始 LaTeX，比从渲染后的 span 反推可靠。整块公式只要与选区相交就整体输出（半个公式没意义），并且拦在遍历入口，绝不会下钻到 `.katex-html` 把渲染字形抄进来。
-- **原生复制走 copy 事件拦截**，与 KaTeX 官方 [copy-tex](https://github.com/KaTeX/KaTeX/tree/main/contrib/copy-tex) 插件同一套模式：重写 `clipboardData` 的 `text/plain`、保留 `text/html`、`preventDefault()`。不拦的话，浏览器原生复制会把 `.katex-mathml` 字形 + `<annotation>` 源码 + `.katex-html` 字形三份叠着抄出来（`$nm$` 变成 `nmnm nm`）。
+- **遍历先 `intersectsNode` 剪枝、再做 `getComputedStyle` 可见性检查**。`intersectsNode` 只比较节点位置，`getComputedStyle` 会强制同步样式重算——顺序对了，序列化成本 ∝ 选区大小而非对话大小。另有 `maxVisits` 访问预算兜底（默认 50000），超限自动降级为选区纯文本，长对话上任何选区都不可能卡死页面。
 - **`aria-hidden="true"` 的元素一律不进 Markdown**（KaTeX 用它标记 `.katex-html` 渲染字形，claude.ai 用它标记装饰图标），作为公式拦截之外的兜底。
 - **UI 放 Shadow DOM**，不被 claude.ai 的 Tailwind 污染，也不会被自己的序列化器当成正文。
 
 ## 测试
 
 ```bash
-~/miniconda3/bin/python test/run.py -v   # 13 条序列化用例（真实 Chromium + 仿 KaTeX DOM）
-~/miniconda3/bin/python test/e2e.py      # 端到端：拖选 → 点按钮 / 原生 Ctrl+C → 读系统剪贴板
+~/miniconda3/bin/python test/run.py -v   # 15 条序列化用例（真实 Chromium + 仿 KaTeX DOM）
+~/miniconda3/bin/python test/e2e.py      # 端到端：拖选 → 点按钮 → 读剪贴板；并验证原生复制不被改写
 ```
 
 依赖 `playwright`（`pip install playwright && playwright install chromium`）。playwright 包版本和

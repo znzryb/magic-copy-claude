@@ -153,10 +153,52 @@ def main():
             for p in problems:
                 print("      ✗ " + p)
                 failures.append((name, p))
+
+        # —— 剪枝回归：选区外的元素绝不能被 getComputedStyle 查样式（性能不变量） ——
+        name = "剪枝：选区外的节点不做样式计算"
+        queried = page.evaluate(
+            """() => {
+              const orig = window.getComputedStyle;
+              const seen = [];
+              window.getComputedStyle = function (el, ...rest) {
+                if (el && el.id) seen.push(el.id);
+                return orig.call(window, el, ...rest);
+              };
+              try {
+                window.MagicCopyMD.fromRange(__t.range('#li-2', 0, '#li-3', -1));
+              } finally {
+                window.getComputedStyle = orig;
+              }
+              return seen;
+            }"""
+        )
+        leaked = [i for i in queried if i in ("pre-code", "tbl", "p-inline", "p-intro", "bq")]
+        ok = not leaked
+        print(f"{'PASS' if ok else 'FAIL'}  {name}")
+        for i in leaked:
+            p = f"选区外元素被查了样式: #{i}"
+            print("      ✗ " + p)
+            failures.append((name, p))
+
+        # —— 预算降级：maxVisits 超限时必须返回纯文本，而不是抛错或卡死 ——
+        name = "预算：maxVisits 超限降级为选区纯文本"
+        md = page.evaluate(
+            "window.MagicCopyMD.fromRange(__t.range('#p-lede', 0, '#li-3', -1), {maxVisits: 3})"
+        )
+        problems = []
+        if "三件事" not in md:
+            problems.append(f"降级输出缺少纯文本内容，实际: {md[:60]!r}")
+        if "**" in md:
+            problems.append("降级输出不该带 Markdown 格式")
+        print(f"{'PASS' if not problems else 'FAIL'}  {name}")
+        for p in problems:
+            print("      ✗ " + p)
+            failures.append((name, p))
+
         browser.close()
 
     print()
-    total = len(CASES)
+    total = len(CASES) + 2  # 13 条序列化用例 + 剪枝 / 预算两条不变量检查
     print(f"{total - len({n for n, _ in failures})}/{total} 用例通过")
     return 1 if failures else 0
 

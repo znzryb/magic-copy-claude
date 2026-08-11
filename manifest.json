@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Magic Copy for Claude",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "选中 Claude 对话中的任意片段，一键复制为 Markdown：KaTeX 公式还原成 LaTeX，列表 / 代码块 / 表格 / 加粗全部保留。",
   "icons": {
     "16": "icons/icon16.png",
